@@ -7,8 +7,6 @@ from ..trainer.transforms import *
 from ..trainer.transforms.vision import *
 from ..trainer.transforms.auto_aug import *
 
-from ..nn.point_det import get_heatmap, BoxList
-
 
 class TransformOnName(object):
     """apply transform to one given name only"""
@@ -258,35 +256,6 @@ def create_match_prior_box(ssd_net, image_size, overlap_bg_threshold, overlap_th
     mpb = MatchPriorBox(image_size, ssd_net.priorbox.priors, ssd_net.detector.variance,
                         overlap_bg_threshold, overlap_thresh, return_iou, warn_unmatched_bbox)
     return mpb
-
-
-class PointHeatMap(object):
-    def __init__(self, scale, num_class):
-        self.scale = scale
-        self.num_class = num_class
-
-    def __call__(self, sample):
-        bbox = sample['bbox'][:, :4]
-        labels = sample['bbox'][:, 4].astype(np.int) - 1
-
-        h, w = sample['input'].shape[-2:]
-        gt_list = BoxList(bbox, (w, h))
-        gt_list.add_field('labels', labels)
-        gt_list.resize((w // self.scale, h // self.scale))
-        heatmap = get_heatmap(gt_list, 0, [self.scale], radius=1, class_num=self.num_class)
-        return dict(input=sample['input'], heatmap=heatmap)
-
-
-def creat_point_heat_map(point_det, image_size):
-    with torch.no_grad():
-        dummy_image = torch.zeros((1, 3, image_size[0], image_size[1]), dtype=torch.float)
-        point_det.eval()
-        heatmap = point_det(dummy_image)
-        h, w = heatmap.shape[-2:]
-        scale_h = image_size[0] // h
-        scale_w = image_size[1] // w
-        assert scale_h == scale_w
-        return PointHeatMap(scale_h, point_det.num_class)
 
 
 def append_image_id(sample, s):
